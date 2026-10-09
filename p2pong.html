@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>P2Pong</title>
+<!-- QR Code Generation Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- QR Code Scanning Library -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    color: #fff;
+    font-family: "Courier New", monospace;
+    overflow: hidden;
+    touch-action: none;
+  }
+  #game {
+    display: block;
+    background: #000;
+    cursor: none;
+    touch-action: none;
+  }
+  #hint {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    opacity: 0.5;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+    text-align: center;
+  }
+  #menu {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid #fff;
+    padding: 24px;
+    text-align: center;
+    color: #fff;
+    font-family: "Courier New", monospace;
+    z-index: 10;
+    min-width: 340px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 0 20px rgba(255,255,255,0.1);
+  }
+  #menu h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 24px;
+    letter-spacing: 2px;
+  }
+  #menu button {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    margin: 6px;
+    font-family: "Courier New", monospace;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s, transform 0.1s;
+  }
+  #menu button:hover {
+    background: #ccc;
+  }
+  #menu button:active {
+    transform: scale(0.98);
+  }
+  #menu textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: #111;
+    color: #0f0;
+    border: 1px solid #444;
+    font-family: monospace;
+    font-size: 11px;
+    margin-bottom: 10px;
+    resize: none;
+    padding: 8px;
+  }
+  #menu p {
+    font-size: 13px;
+    margin: 12px 0 6px 0;
+    text-align: left;
+    opacity: 0.8;
+  }
+  .hidden {
+    display: none !important;
+  }
+  #qrcode {
+    display: flex;
+    justify-content: center;
+    margin: 15px auto;
+    padding: 10px;
+    background: #000;
+    border: 1px solid #333;
+    width: fit-content;
+  }
+  #qrcode img, #qrcode canvas {
+    display: block;
+  }
+  #qr-reader {
+    width: 100%;
+    max-width: 300px;
+    margin: 10px auto;
+    border: 1px solid #fff;
+  }
+  #qr-reader__dashboard_section_csr button {
+    background: #fff !important;
+    color: #000 !important;
+    border: none !important;
+    padding: 8px 16px !important;
+    font-family: "Courier New", monospace !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+  }
+  #qr-reader__dashboard_section_swap {
+    display: none !important;
+  }
+
+  .touch-controls {
+    display: none;
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .touch-controls button {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.3);
+    border: 2px solid #fff;
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .touch-controls button:active {
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .touch-controls {
+      display: flex;
+    }
+    #hint {
+      font-size: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="touch-controls" id="touch-controls">
+  <button id="btn-paddle-up" title="Increase paddle size">+</button>
+  <button id="btn-paddle-down" title="Decrease paddle size">−</button>
+</div>
+
+<div id="hint">Touch: Move Paddle | Buttons: Resize Paddle | Tap: Restart</div>
+
+<div id="menu">
+  <h2>P2PONG</h2>
+  
+  <div id="menu-main">
+    <button id="btn-single">Single Player</button>
+    <button id="btn-host">Host Game</button>
+    <button id="btn-join">Join Game</button>
+  </div>
+
+  <div id="menu-host" class="hidden">
+    <p>1. Share this QR code or code with your friend:</p>
+    <div id="qrcode-host"></div>
+    <textarea id="offer-out" rows="3" readonly></textarea>
+    <button id="copy-offer">Copy Code</button>
+    
+    <p>2. Paste your friend's response code here:</p>
+    <textarea id="answer-in" rows="3" placeholder="Paste response code here..."></textarea>
+    <button id="btn-scan-answer">Scan QR Response</button>
+    <button id="btn-accept-answer">Connect</button>
+  </div>
+
+  <div id="menu-join" class="hidden">
+    <p>1. Scan or paste the host's invitation code:</p>
+    <div id="qr-reader" class="hidden"></div>
+    <button id="btn-scan-offer">Scan Host QR</button>
+    <textarea id="offer-in" rows="3" placeholder="Paste invitation code here..."></textarea>
+    <button id="btn-accept-offer">Generate Response</button>
+    
+    <p>2. Share this response QR or code with the host:</p>
+    <div id="qrcode-answer"></div>
+    <textarea id="answer-out" rows="3" readonly></textarea>
+    <button id="copy-answer">Copy Code</button>
+  </div>
+
+  <p id="status" style="color: #ff0; min-height: 1.2em; text-align: center; margin-top: 15px;"></p>
+  <button id="btn-back" class="hidden">← Back to Menu</button>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const BORDER = 25;
+  const PADDLE_W = 10;
+  const PADDLE_H_MIN = 40;
+  const PADDLE_H_MAX = 160;
+  const PADDLE_H_STEP = 10;
+  const BALL_SIZE = 12;
+  const PADDLE_OFFSET = 20;
+
+  let W = 0, H = 0;
+  let playX = 0, playY = 0, playW = 0, playH = 0;
+
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playTone(freq, duration) {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    const A = 0.005;
+    const D = Math.max(0.005, duration * 0.2);
+    const S = 0.55;
+    const R = Math.max(0.01, duration * 0.35);
+    const sustainEnd = Math.max(A + D, duration - R);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.6, now + A);
+    gain.gain.linearRampToValueAtTime(S * 0.6, now + A + D);
+    gain.gain.setValueAtTime(S * 0.6, now + sustainEnd);
+    gain.gain.linearRampToValueAtTime(0.0001, now + sustainEnd + R);
+
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.05);
+  }
+
+  const SFX = {
+    wall:   () => playTone(226, 0.016),
+    paddle: () => playTone(459, 0.096),
+    point:  () => playTone(490, 0.257)
+  };
+
+  const p1 = { x: 0, y: 0, w: PADDLE_W, h: 80, score: 0, trail: [] };
+  const p2 = { x: 0, y: 0, w: PADDLE_W, h: 80, score: 0, trail: [] };
+  const ball = { x: 0, y: 0, size: BALL_SIZE, vx: 0, vy: 0, speed: 5, trail: [] };
+
+  let state = 'playing';
+  let winner = '';
+
+  let gameMode = 'single'; 
+  let isHost = false;
+  let isConnected = false;
+  let pc = null;
+  let dc = null;
+  let html5QrcodeScanner = null;
+
+  let isGameActive = false;
+  let animationId = null;
+
+  function encodeData(obj) {
+    return btoa(JSON.stringify(obj));
+  }
+
+  function decodeData(str) {
+    try {
+      return JSON.parse(atob(str));
+    } catch (e) {
+      console.error("Failed to decode Base64 data", e);
+      return null;
+    }
+  }
+
+  function generateQR(containerId, text) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    new QRCode(container, {
+      text: text,
+      width: 180,
+      height: 180,
+      colorDark: "#ffffff",
+      colorLight: "#000000",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
+  function startQRScanner(targetAction) {
+    const readerDiv = document.getElementById('qr-reader');
+    readerDiv.classList.remove('hidden');
+    document.getElementById('status').textContent = 'Camera starting... Allow permissions if prompted.';
+
+    html5QrcodeScanner = new Html5Qrcode("qr-reader");
+    html5QrcodeScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 200, height: 200 } },
+      (decodedText) => {
+        html5QrcodeScanner.stop().then(() => {
+          readerDiv.classList.add('hidden');
+          document.getElementById('status').textContent = 'QR Code scanned successfully!';
+          targetAction(decodedText);
+        }).catch(err => console.error("Failed to stop scanner", err));
+      },
+      (errorMessage) => {}
+    ).catch(err => {
+      document.getElementById('status').textContent = 'Camera error. Please paste the code manually.';
+      readerDiv.classList.add('hidden');
+      console.error("QR Scanner failed to start", err);
+    });
+  }
+
+  function clampPaddle(p) {
+    p.y = Math.max(playY, Math.min(playY + playH - p.h, p.y));
+  }
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+
+    playX = BORDER;
+    playY = BORDER;
+    playW = W - 2 * BORDER;
+    playH = H - 2 * BORDER;
+
+    p1.x = playX + PADDLE_OFFSET;
+    p2.x = playX + playW - PADDLE_OFFSET - PADDLE_W;
+
+    clampPaddle(p1);
+    clampPaddle(p2);
+    
+    if (!ball.x && !ball.y) {
+      ball.x = playX + playW / 2 - ball.size / 2;
+      ball.y = playY + playH / 2 - ball.size / 2;
+    } else {
+      ball.x = Math.max(playX, Math.min(playX + playW - ball.size, ball.x));
+      ball.y = Math.max(playY, Math.min(playY + playH - ball.size, ball.y));
+    }
+  }
+  window.addEventListener('resize', resize);
+
+  function resetBall(direction) {
+    ball.x = playX + playW / 2 - ball.size / 2;
+    ball.y = playY + playH / 2 - ball.size / 2;
+    ball.speed = 5;
+    const angle = (Math.random() * 0.5 - 0.25) * Math.PI;
+    const dir = direction || (Math.random() < 0.5 ? -1 : 1);
+    ball.vx = Math.cos(angle) * ball.speed * dir;
+    ball.vy = Math.sin(angle) * ball.speed;
+    ball.trail.length = 0;
+  }
+
+  resize();
+  resetBall();
+
+  function startGameLoop() {
+    if (!isGameActive) {
+      isGameActive = true;
+      loop();
+    }
+  }
+
+  function stopGameLoop() {
+    isGameActive = false;
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  }
+
+  function getPaddleYFromScreen(clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleY = canvas.height / rect.height;
+    const my = (clientY - rect.top) * scaleY;
+    return my;
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    ensureAudio();
+    const my = getPaddleYFromScreen(e.clientY);
+    
+    if (isHost || gameMode === 'single') {
+      p1.y = Math.max(playY, Math.min(playY + playH - p1.h, my - p1.h / 2));
+    } else {
+      p2.y = Math.max(playY, Math.min(playY + playH - p2.h, my - p2.h / 2));
+    }
+  });
+
+  canvas.addEventListener('mousedown', () => {
+    ensureAudio();
+    if (state === 'gameover') {
+      if (gameMode === 'single' || isHost) {
+        p1.score = 0;
+        p2.score = 0;
+        state = 'playing';
+        resetBall();
+      }
+    }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    ensureAudio();
+    const delta = e.deltaY < 0 ? PADDLE_H_STEP : -PADDLE_H_STEP;
+
+    if (isHost || gameMode === 'single') {
+      const oldPH = p1.h;
+      p1.h = Math.max(PADDLE_H_MIN, Math.min(PADDLE_H_MAX, p1.h + delta));
+      const center = p1.y + oldPH / 2;
+      p1.y = center - p1.h / 2;
+      clampPaddle(p1);
+    } else {
+      const oldPH = p2.h;
+      p2.h = Math.max(PADDLE_H_MIN, Math.min(PADDLE_H_MAX, p2.h + delta));
+      const center = p2.y + oldPH / 2;
+      p2.y = center - p2.h / 2;
+      clampPaddle(p2);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    ensureAudio();
+    
+    if (state === 'gameover') {
+      if (gameMode === 'single' || isHost) {
+        p1.score = 0;
+        p2.score = 0;
+        state = 'playing';
+        resetBall();
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      const my = getPaddleYFromScreen(touch.clientY);
+      
+      if (isHost || gameMode === 'single') {
+        p1.y = Math.max(playY, Math.min(playY + playH - p1.h, my - p1.h / 2));
+      } else {
+        p2.y = Math.max(playY, Math.min(playY + playH - p2.h, my - p2.h / 2));
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+
+  function adjustPaddleSize(delta) {
+    ensureAudio();
+    
+    if (isHost || gameMode === 'single') {
+      const oldPH = p1.h;
+      p1.h = Math.max(PADDLE_H_MIN, Math.min(PADDLE_H_MAX, p1.h + delta));
+      const center = p1.y + oldPH / 2;
+      p1.y = center - p1.h / 2;
+      clampPaddle(p1);
+    } else {
+      const oldPH = p2.h;
+      p2.h = Math.max(PADDLE_H_MIN, Math.min(PADDLE_H_MAX, p2.h + delta));
+      const center = p2.y + oldPH / 2;
+      p2.y = center - p2.h / 2;
+      clampPaddle(p2);
+    }
+  }
+
+  document.getElementById('btn-paddle-up').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    adjustPaddleSize(PADDLE_H_STEP);
+  }, { passive: false });
+
+  document.getElementById('btn-paddle-down').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    adjustPaddleSize(-PADDLE_H_STEP);
+  }, { passive: false });
+
+  document.getElementById('btn-paddle-up').addEventListener('click', () => {
+    adjustPaddleSize(PADDLE_H_STEP);
+  });
+
+  document.getElementById('btn-paddle-down').addEventListener('click', () => {
+    adjustPaddleSize(-PADDLE_H_STEP);
+  });
+
+  async function waitForIceGathering(peerConnection) {
+    return new Promise(resolve => {
+      if (peerConnection.iceGatheringState === 'complete') {
+        resolve();
+      } else {
+        const check = () => {
+          if (peerConnection.iceGatheringState === 'complete') {
+            peerConnection.removeEventListener('icegatheringstatechange', check);
+            resolve();
+          }
+        };
+        peerConnection.addEventListener('icegatheringstatechange', check);
+        setTimeout(() => {
+          peerConnection.removeEventListener('icegatheringstatechange', check);
+          resolve();
+        }, 3000);
+      }
+    });
+  }
+
+  function handleDisconnect() {
+    stopGameLoop();
+    isConnected = false;
+    if (pc) {
+      pc.close();
+      pc = null;
+    }
+    dc = null;
+    
+    document.getElementById('menu').classList.remove('hidden');
+    document.getElementById('menu-main').classList.remove('hidden');
+    document.getElementById('menu-host').classList.add('hidden');
+    document.getElementById('menu-join').classList.add('hidden');
+    document.getElementById('btn-back').classList.add('hidden');
+    document.getElementById('status').textContent = 'Player disconnected. Returned to menu.';
+    
+    p1.score = 0;
+    p2.score = 0;
+    state = 'playing';
+    resetBall();
+  }
+
+  function setupDataChannel() {
+    dc.onopen = () => {
+      isConnected = true;
+      document.getElementById('menu').classList.add('hidden');
+      document.getElementById('status').textContent = '';
+      if (isHost) {
+        resetBall();
+      }
+      startGameLoop();
+    };
+    
+    dc.onclose = handleDisconnect;
+
+    dc.onmessage = (e) => {
+      const msg = decodeData(e.data);
+      if (!msg) return;
+
+      if (isHost) {
+        if (msg.type === 'input') {
+          p2.y = msg.y;
+          p2.h = msg.h;
+          clampPaddle(p2);
+        }
+      } else {
+        if (msg.type === 'state') {
+          ball.x = msg.ball.x;
+          ball.y = msg.ball.y;
+          ball.vx = msg.ball.vx;
+          ball.vy = msg.ball.vy;
+          ball.speed = msg.ball.speed;
+          
+          p1.y = msg.p1.y;
+          p1.h = msg.p1.h;
+          p2.y = msg.p2.y;
+          p2.h = msg.p2.h;
+          
+          p1.score = msg.score1;
+          p2.score = msg.score2;
+          state = msg.gameState;
+          winner = msg.winner;
+        }
+      }
+    };
+  }
+
+  async function createOffer() {
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        handleDisconnect();
+      }
+    };
+
+    dc = pc.createDataChannel('game', { ordered: false, maxRetransmits: 0 });
+    setupDataChannel();
+    
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGathering(pc);
+    
+    const base64Offer = encodeData(pc.localDescription);
+    document.getElementById('offer-out').value = base64Offer;
+    generateQR('qrcode-host', base64Offer);
+    document.getElementById('status').textContent = 'Invitation ready! Share the QR or code.';
+  }
+
+  async function acceptOffer(base64Offer) {
+    if (!base64Offer) return;
+    
+    try {
+      const offer = decodeData(base64Offer);
+      if (!offer) throw new Error("Invalid data");
+
+      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          handleDisconnect();
+        }
+      };
+
+      pc.ondatachannel = (e) => {
+        dc = e.channel;
+        setupDataChannel();
+      };
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitForIceGathering(pc);
+      
+      const base64Answer = encodeData(pc.localDescription);
+      document.getElementById('answer-out').value = base64Answer;
+      generateQR('qrcode-answer', base64Answer);
+      document.getElementById('status').textContent = 'Response ready! Share the QR or code with the host.';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Error: Invalid code format.';
+      console.error(e);
+    }
+  }
+
+  async function acceptAnswer(base64Answer) {
+    if (!base64Answer) return;
+    
+    try {
+      const answer = decodeData(base64Answer);
+      if (!answer) throw new Error("Invalid data");
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      document.getElementById('status').textContent = 'Connecting...';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Error: Invalid code format.';
+      console.error(e);
+    }
+  }
+
+  const menu = document.getElementById('menu');
+  const menuMain = document.getElementById('menu-main');
+  const menuHost = document.getElementById('menu-host');
+  const menuJoin = document.getElementById('menu-join');
+  const status = document.getElementById('status');
+  const btnBack = document.getElementById('btn-back');
+
+  document.getElementById('btn-single').onclick = () => {
+    ensureAudio();
+    gameMode = 'single';
+    isHost = true;
+    isConnected = true;
+    menu.classList.add('hidden');
+    resetBall();
+    startGameLoop();
+  };
+
+  document.getElementById('btn-host').onclick = () => {
+    ensureAudio();
+    gameMode = 'multi';
+    isHost = true;
+    menuMain.classList.add('hidden');
+    menuHost.classList.remove('hidden');
+    btnBack.classList.remove('hidden');
+    status.textContent = 'Generating invitation...';
+    createOffer();
+  };
+
+  document.getElementById('btn-join').onclick = () => {
+    ensureAudio();
+    gameMode = 'multi';
+    isHost = false;
+    menuMain.classList.add('hidden');
+    menuJoin.classList.remove('hidden');
+    btnBack.classList.remove('hidden');
+  };
+
+  document.getElementById('btn-back').onclick = () => {
+    stopGameLoop();
+    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+      html5QrcodeScanner.stop().catch(() => {});
+    }
+    document.getElementById('qr-reader').classList.add('hidden');
+    
+    menuMain.classList.remove('hidden');
+    menuHost.classList.add('hidden');
+    menuJoin.classList.add('hidden');
+    btnBack.classList.add('hidden');
+    status.textContent = '';
+    
+    if (pc) {
+      pc.close();
+      pc = null;
+    }
+    dc = null;
+    isConnected = false;
+  };
+
+  document.getElementById('copy-offer').onclick = () => {
+    navigator.clipboard.writeText(document.getElementById('offer-out').value);
+    status.textContent = 'Code copied to clipboard!';
+  };
+
+  document.getElementById('btn-scan-answer').onclick = () => {
+    startQRScanner((decodedText) => {
+      document.getElementById('answer-in').value = decodedText;
+      acceptAnswer(decodedText);
+    });
+  };
+
+  document.getElementById('btn-accept-answer').onclick = () => {
+    const code = document.getElementById('answer-in').value.trim();
+    status.textContent = 'Processing...';
+    acceptAnswer(code);
+  };
+
+  document.getElementById('btn-scan-offer').onclick = () => {
+    startQRScanner((decodedText) => {
+      document.getElementById('offer-in').value = decodedText;
+      acceptOffer(decodedText);
+    });
+  };
+
+  document.getElementById('btn-accept-offer').onclick = () => {
+    const code = document.getElementById('offer-in').value.trim();
+    status.textContent = 'Generating response...';
+    acceptOffer(code);
+  };
+
+  document.getElementById('copy-answer').onclick = () => {
+    navigator.clipboard.writeText(document.getElementById('answer-out').value);
+    status.textContent = 'Code copied to clipboard!';
+  };
+
+  function updateAI() {
+    const target = ball.y + ball.size / 2 - p2.h / 2;
+    const diff = target - p2.y;
+    const maxStep = 5.2;
+    if (Math.abs(diff) < maxStep) p2.y = target;
+    else p2.y += Math.sign(diff) * maxStep;
+    clampPaddle(p2);
+  }
+
+  function update() {
+    if (state !== 'playing') return;
+
+    if (gameMode === 'single') {
+      updateAI();
+    }
+
+    ball.trail.push({ x: ball.x, y: ball.y });
+    if (ball.trail.length > 14) ball.trail.shift();
+
+    p1.trail.push(p1.y);
+    if (p1.trail.length > 7) p1.trail.shift();
+    
+    p2.trail.push(p2.y);
+    if (p2.trail.length > 7) p2.trail.shift();
+
+    const prevX = ball.x;
+    const prevY = ball.y;
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y <= playY) {
+      ball.y = playY;
+      ball.vy = -ball.vy;
+      SFX.wall();
+    } else if (ball.y + ball.size >= playY + playH) {
+      ball.y = playY + playH - ball.size;
+      ball.vy = -ball.vy;
+      SFX.wall();
+    }
+
+    if (ball.vx < 0) {
+      const paddleRight = p1.x + p1.w;
+      if (prevX >= paddleRight && ball.x <= paddleRight) {
+        const t = (paddleRight - prevX) / ball.vx;
+        const intersectY = prevY + ball.vy * t;
+        if (intersectY + ball.size >= p1.y && intersectY <= p1.y + p1.h) {
+          ball.x = paddleRight;
+          handlePaddleHit(p1);
+          SFX.paddle();
+        }
+      }
+    }
+
+    if (ball.vx > 0) {
+      const paddleLeft = p2.x;
+      if (prevX + ball.size <= paddleLeft && ball.x + ball.size >= paddleLeft) {
+        const t = (paddleLeft - (prevX + ball.size)) / ball.vx;
+        const intersectY = prevY + ball.vy * t;
+        if (intersectY + ball.size >= p2.y && intersectY <= p2.y + p2.h) {
+          ball.x = paddleLeft - ball.size;
+          handlePaddleHit(p2);
+          SFX.paddle();
+        }
+      }
+    }
+
+    if (ball.x + ball.size < playX) {
+      p2.score++;
+      SFX.point();
+      checkGameOver();
+      if (state === 'playing') resetBall(1);
+    } else if (ball.x > playX + playW) {
+      p1.score++;
+      SFX.point();
+      checkGameOver();
+      if (state === 'playing') resetBall(-1);
+    }
+  }
+
+  function handlePaddleHit(paddle) {
+    const relative = (ball.y + ball.size / 2) - (paddle.y + paddle.h / 2);
+    const norm = relative / (paddle.h / 2);
+    const maxAngle = Math.PI / 3.2;
+    const angle = norm * maxAngle;
+    ball.speed = Math.min(ball.speed + 0.35, 13);
+    const dir = paddle === p1 ? 1 : -1;
+    ball.vx = Math.cos(angle) * ball.speed * dir;
+    ball.vy = Math.sin(angle) * ball.speed;
+  }
+
+  function checkGameOver() {
+    if (p1.score >= 11 || p2.score >= 11) {
+      state = 'gameover';
+      winner = p1.score > p2.score ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS';
+    }
+  }
+
+  function drawBorder() {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(playX, playY, playW, playH, 14);
+    ctx.stroke();
+  }
+
+  function drawNet() {
+    ctx.fillStyle = '#fff';
+    const dashH = 10, gap = 12;
+    const cx = playX + playW / 2;
+    for (let y = playY; y < playY + playH; y += dashH + gap) {
+      ctx.beginPath();
+      ctx.roundRect(cx - 1, y, 2, dashH, 1);
+      ctx.fill();
+    }
+  }
+
+  function drawPaddleTrail(p) {
+    const len = p.trail.length;
+    const r = p.w / 2;
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      const alpha = 0.04 + t * 0.18;
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.trail[i], p.w, p.h, r);
+      ctx.fill();
+    }
+  }
+
+  function drawPaddle(p) {
+    ctx.fillStyle = '#fff';
+    const r = p.w / 2;
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y, p.w, p.h, r);
+    ctx.fill();
+  }
+
+  function drawBallTrail() {
+    const len = ball.trail.length;
+    const r = ball.size / 2;
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      const alpha = 0.03 + t * 0.22;
+      const cr = r * (0.4 + t * 0.6);
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(ball.trail[i].x + r, ball.trail[i].y + r, cr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawBall() {
+    ctx.fillStyle = '#fff';
+    const r = ball.size / 2;
+    ctx.beginPath();
+    ctx.arc(ball.x + r, ball.y + r, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawScore() {
+    ctx.fillStyle = '#fff';
+    const fontSize = Math.max(28, Math.min(72, Math.floor(playH / 6)));
+    ctx.font = `${fontSize}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const cx = playX + playW / 2;
+    ctx.fillText(p1.score, cx - fontSize * 0.9, playY + 20);
+    ctx.fillText(p2.score, cx + fontSize * 0.9, playY + 20);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawGameOver() {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(playX, playY, playW, playH, 14);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const fs = Math.max(24, Math.min(56, Math.floor(playH / 10)));
+    ctx.font = `${fs}px "Courier New", monospace`;
+    ctx.fillText(winner, playX + playW / 2, playY + playH / 2 - 10);
+    ctx.font = `${Math.floor(fs * 0.45)}px "Courier New", monospace`;
+    ctx.fillText('Tap to play again', playX + playW / 2, playY + playH / 2 + 30);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function draw() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    drawBorder();
+    drawNet();
+
+    drawPaddleTrail(p1);
+    drawPaddleTrail(p2);
+    drawPaddle(p1);
+    drawPaddle(p2);
+
+    drawBallTrail();
+    drawBall();
+
+    drawScore();
+    if (state === 'gameover') drawGameOver();
+  }
+
+  function loop() {
+    if (!isGameActive) return;
+
+    if (gameMode === 'single' || (gameMode === 'multi' && isHost && isConnected)) {
+      update();
+    }
+
+    if (gameMode === 'multi' && isConnected && dc && dc.readyState === 'open') {
+      if (isHost) {
+        dc.send(encodeData({
+          type: 'state',
+          ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy, speed: ball.speed },
+          p1: { y: p1.y, h: p1.h },
+          p2: { y: p2.y, h: p2.h },
+          score1: p1.score,
+          score2: p2.score,
+          gameState: state,
+          winner: winner
+        }));
+      } else {
+        dc.send(encodeData({ 
+          type: 'input', 
+          y: p2.y, 
+          h: p2.h 
+        }));
+      }
+    }
+
+    draw();
+    animationId = requestAnimationFrame(loop);
+  }
+})();
+</script>
+</body>
+</html>
